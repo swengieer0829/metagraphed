@@ -37,13 +37,17 @@ import {
 } from "./request-handlers/discovery.mjs";
 import {
   buildChangeEvent,
+  deliveryStoragePrefix,
   generateSecret,
   generateSubscriptionId,
   isValidSubscriptionId,
   publicSubscriptionView,
   subscriptionStorageKey,
+  summarizeDeliveryRecords,
   timingSafeEqual,
   validateSubscriptionInput,
+  WEBHOOK_EVENT_ID_HEADER,
+  WEBHOOK_IDEMPOTENCY_HEADER,
   WEBHOOK_SECRET_HEADER,
   WEBHOOK_SIGNATURE_HEADER,
 } from "../src/webhooks.mjs";
@@ -4313,7 +4317,9 @@ async function createWebhookSubscription(request, env) {
         content_type: JSON_CONTENT_TYPE,
         signature_header: WEBHOOK_SIGNATURE_HEADER,
         signature_algorithm: "hmac-sha256-hex",
-        note: "HMAC-SHA256 of the raw request body, hex-encoded, keyed by your secret.",
+        event_id_header: WEBHOOK_EVENT_ID_HEADER,
+        idempotency_header: WEBHOOK_IDEMPOTENCY_HEADER,
+        note: "HMAC-SHA256 of the raw request body, hex-encoded, keyed by your secret. Delivery is at-least-once: dedupe retries on the idempotency header.",
       },
     },
     201,
@@ -4367,7 +4373,31 @@ async function getWebhookSubscription(env, id) {
       },
     );
   }
-  return dataResponse(env, publicSubscriptionView(record));
+  return dataResponse(env, {
+    ...publicSubscriptionView(record),
+    delivery: await readDeliveryStatus(env, id),
+  });
+}
+
+// Delivery health for the public GET, summarized from the parked records.
+// Best-effort — a list/get hiccup or a store without `list` degrades to "ok".
+async function readDeliveryStatus(env, id) {
+  try {
+    if (typeof env.METAGRAPH_CONTROL.list !== "function") {
+      return summarizeDeliveryRecords([]); // local dev: KV mock without list()
+    }
+    const { keys } = await env.METAGRAPH_CONTROL.list({
+      prefix: deliveryStoragePrefix(id),
+    });
+    const records = await Promise.all(
+      keys.map((entry) =>
+        env.METAGRAPH_CONTROL.get(entry.name, { type: "json" }),
+      ),
+    );
+    return summarizeDeliveryRecords(records);
+  } catch {
+    return summarizeDeliveryRecords([]); // best-effort: never break the read
+  }
 }
 
 async function deleteWebhookSubscription(request, env, id) {
