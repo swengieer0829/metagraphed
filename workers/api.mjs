@@ -45,6 +45,7 @@ import {
   handleChainCalls,
   handleChainFees,
   handleChainSigners,
+  handleChainTransfers,
   handleGlobalIncidents,
   loadGlobalIncidentsLedger,
   handleHealthIncidents,
@@ -1610,6 +1611,9 @@ export async function handleRequest(request, env = {}, ctx = {}) {
     if (resolved.url.pathname === "/api/v1/chain/fees") {
       return handleChainFees(request, env, resolved.url, ctx);
     }
+    if (resolved.url.pathname === "/api/v1/chain/transfers") {
+      return handleChainTransfers(request, env, resolved.url, ctx);
+    }
     // Network-wide economics time series (#1307): deterministic per cron snapshot
     // (GROUP-BY-day over subnet_snapshots) — edge-cache on last_run_at like the
     // sibling history/trajectory routes; ?window rides the search into the key.
@@ -1668,6 +1672,7 @@ function isMainnetOnlyApiPath(pathname) {
     pathname === "/api/v1/chain/calls" ||
     pathname === "/api/v1/chain/signers" ||
     pathname === "/api/v1/chain/fees" ||
+    pathname === "/api/v1/chain/transfers" ||
     pathname === "/api/v1/economics/trends" ||
     pathname.startsWith("/api/v1/webhooks/") ||
     BULK_TRENDS_PATH_PATTERN.test(pathname) ||
