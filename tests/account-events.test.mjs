@@ -7,6 +7,7 @@ import {
   INGESTED_EVENT_KINDS,
   EVENT_RETENTION_MS,
   formatAccountEvent,
+  formatAccountActivity,
   formatAccountDay,
   formatRegistration,
   buildAccountSummary,
@@ -155,6 +156,64 @@ test("formatAccountEvent is null-safe on junk + sparse rows", () => {
   const out = formatAccountEvent({ block_number: 1 });
   assert.equal(out.hotkey, null);
   assert.equal(out.observed_at, null);
+});
+
+test("formatAccountEvent coerces string-typed observed_at cells to ISO timestamps", () => {
+  const out = formatAccountEvent({
+    block_number: 1,
+    event_kind: "Transfer",
+    observed_at: "1750000000000",
+  });
+  assert.equal(out.observed_at, new Date(1750000000000).toISOString());
+});
+
+test("formatAccountEvent preserves null observed_at as null (not epoch 1970)", () => {
+  const out = formatAccountEvent({
+    block_number: 1,
+    event_kind: "Transfer",
+    observed_at: null,
+  });
+  assert.equal(out.observed_at, null);
+});
+
+test("formatAccountEvent drops invalid observed_at strings to null", () => {
+  const out = formatAccountEvent({
+    block_number: 1,
+    event_kind: "Transfer",
+    observed_at: "not-a-timestamp",
+  });
+  assert.equal(out.observed_at, null);
+});
+
+test("buildAccountTransfers coerces string-typed observed_at cells to ISO timestamps", () => {
+  const out = buildAccountTransfers(
+    [
+      {
+        hotkey: "5A",
+        coldkey: "5B",
+        amount_tao: 1,
+        observed_at: "1750000000000",
+      },
+    ],
+    "5A",
+  );
+  assert.equal(
+    out.transfers[0].observed_at,
+    new Date(1750000000000).toISOString(),
+  );
+});
+
+test("formatAccountActivity coerces string-typed last_tx_at to ISO timestamps", () => {
+  const out = formatAccountActivity({ last_tx_at: "1750000000000" }, []);
+  assert.equal(out.last_tx_at, new Date(1750000000000).toISOString());
+});
+
+test("buildAccountSummary coerces string-typed first/last seen timestamps", () => {
+  const out = buildAccountSummary("5Hk", {
+    agg: { fo: "1750000000000", lo: "1750009000000" },
+  });
+  assert.equal(out.first_seen_at, new Date(1750000000000).toISOString());
+  assert.equal(out.last_seen_at, new Date(1750009000000).toISOString());
 });
 
 test("formatAccountEvent coerces string-typed netuid and uid cells to Numbers", () => {
