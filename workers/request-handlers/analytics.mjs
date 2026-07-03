@@ -361,6 +361,23 @@ export async function readNeuronsCacheStamp(env) {
   return coerceCapturedAtStamp(rows[0]?.captured_at);
 }
 
+// Network-wide identity-history cache stamp: the newest observed_at across ALL
+// subnets' identity changes, so the network identity-history feed busts its edge
+// cache the moment any subnet records a new change. The append-only feed analog of
+// readNeuronsCacheStamp.
+export async function readIdentityHistoryCacheStamp(env) {
+  const rows = await d1All(
+    env,
+    "SELECT MAX(observed_at) AS observed_at FROM subnet_identity_history",
+    [],
+  );
+  if (hasD1FallbackRows(rows)) return null;
+  const observedAt = rows[0]?.observed_at;
+  return Number.isInteger(observedAt) && observedAt > 0
+    ? String(observedAt)
+    : null;
+}
+
 // Edge-cache stamp for routes derived from the neuron_daily rollup (the daily-snapshot tier), NOT
 // the live `neurons` tier: reads MAX(captured_at) from neuron_daily so the stamp advances exactly
 // when a new daily snapshot lands, invalidating the cached artifact on that refresh rather than on
