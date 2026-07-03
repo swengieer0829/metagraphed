@@ -196,6 +196,26 @@ describe("captured-fixture body scan", () => {
     }
   });
 
+  test("flags every GitHub token prefix, not just ghp_", async () => {
+    // ghp_ is the personal-access prefix, but gho_/ghu_/ghs_/ghr_ (OAuth,
+    // user-to-server, App installation, refresh) are the same leakable family.
+    // Assemble each token from a prefix + shared body at runtime so the source
+    // never commits a contiguous token-shaped literal (which secret scanners
+    // would flag as a leaked credential in the diff).
+    const body = "abcdefghijklmnopqrstuvwxyz0123456789";
+    const leaks = ["ghp", "gho", "ghu", "ghs", "ghr"].map(
+      (prefix) => `${prefix}_${body}`,
+    );
+    await fs.writeFile(TEST_PUBLIC_PATH, `${leaks.join("\n")}\n`, "utf8");
+    const output = runScanOutput();
+    for (const [index] of leaks.entries()) {
+      assert.ok(
+        output.includes(`${TEST_PUBLIC_FILE}:${index + 1}: github token`),
+        `github token on line ${index + 1} must be flagged; got:\n${output}`,
+      );
+    }
+  });
+
   test("flags a link-local cloud-metadata URL as a private/loopback leak", async () => {
     // 169.254.169.254 is the AWS/GCP metadata endpoint — the canonical SSRF /
     // credential-theft target and unsafe per lib.mjs isUnsafeUrl, so a leaked URL
