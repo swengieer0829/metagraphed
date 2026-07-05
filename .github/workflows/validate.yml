@@ -84,9 +84,17 @@ jobs:
   #
   # A third, same-shape flag: `run_ui_validation` gates the `ui` job below
   # (apps/ui, the TanStack Start/Vite frontend folded in as an npm workspace —
-  # #3062). It matches `^apps/ui/` only -- that workspace's lint/typecheck/
-  # test/build never touches anything outside its own directory, same
-  # reasoning as the two flags above, and it isn't registry-adjacent either.
+  # #3062). Matches `^apps/ui/` OR `^packages/client/` -- the latter is
+  # required, not optional: packages/client/dist/index.js + index.cjs are
+  # committed (#3066/#3294), and the ui job's "Build packages/client (drift
+  # check)" step is the ONLY place that verifies those committed files still
+  # match a fresh build from src. A packages/client-only PR (no apps/ui
+  # touch) would otherwise skip that check entirely, letting stale or
+  # directly-tampered committed runtime code merge unverified (a real P1
+  # finding from Superagent on #3294 — this was fixed in response to that,
+  # not written correctly the first time). Neither directory's validation
+  # touches anything outside these two, so this flag isn't registry-adjacent
+  # either, same reasoning as the two flags above.
   changes:
     name: changes
     runs-on: ubuntu-latest
@@ -156,7 +164,7 @@ jobs:
           else
             echo "run_migrations_validation=false" >> "$GITHUB_OUTPUT"
           fi
-          if grep -qE '^apps/ui/' changed-files.txt; then
+          if grep -qE '^apps/ui/|^packages/client/' changed-files.txt; then
             echo "run_ui_validation=true" >> "$GITHUB_OUTPUT"
           else
             echo "run_ui_validation=false" >> "$GITHUB_OUTPUT"
@@ -659,16 +667,33 @@ jobs:
         run: npm ci
 
       # apps/ui consumes packages/client as a live workspace link (#3066), not
-      # a published package -- packages/client's dist/ is gitignored, so it
-      # must be built before anything importing @jsonbored/metagraphed can
-      # resolve real content. Deliberately NOT a package.json "prepare"
-      # script: that would auto-run the build (sync + tsup) on every `npm
-      # install`/`ci` for anyone in the repo, which a security scan flagged
-      # as unnecessary install-time code execution (#3066 review). Building
-      # explicitly here, only where it's actually needed, avoids that.
-      - name: Build packages/client
+      # a published package. packages/client/dist/index.js + index.cjs (the
+      # RUNTIME bundle only, NOT the .d.ts type declarations -- see
+      # packages/client/.gitignore) ARE committed specifically so Cloudflare
+      # Workers Builds' live deploy never has to build them: that build
+      # depends on `tsup` resolving correctly via PATH inside a `cd`'d-into
+      # workspace directory, which real Workers Builds runs hit failing in
+      # ways this repo's own environment never reproduced (npm
+      # hoisting/caching differences between environments) -- eliminating
+      # the build-at-deploy-time step entirely removes that whole failure
+      # class. Deliberately NOT a package.json "prepare" script either: that
+      # would auto-run the build on every `npm install`/`ci` for anyone in
+      # the repo, which a security scan flagged as unnecessary install-time
+      # code execution (#3066 review). This step exists purely as a DRIFT
+      # CHECK: rebuild fresh and diff against the committed copy (`git diff`
+      # only considers tracked files, so the gitignored .d.ts is naturally
+      # excluded here without any extra scoping), so an edit to
+      # packages/client/src without a matching
+      # `npm run build --workspace=packages/client` + commit of the runtime
+      # bundle fails loudly here rather than shipping stale runtime code.
+      - name: Build packages/client (drift check)
         if: env.RUN_UI_VALIDATION == 'true'
-        run: npm run build --workspace=packages/client
+        run: |
+          npm run build --workspace=packages/client
+          if ! git diff --exit-code -- packages/client/dist; then
+            echo "::error::packages/client/dist is stale -- run 'npm run build --workspace=packages/client' and commit the result."
+            exit 1
+          fi
 
       - name: Lint (ESLint + Prettier)
         if: env.RUN_UI_VALIDATION == 'true'
