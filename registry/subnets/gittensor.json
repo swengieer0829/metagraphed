@@ -416,6 +416,28 @@
         "https://api.gittensor.io/swagger"
       ],
       "url": "https://api.gittensor.io/"
+    },
+    {
+      "auth_required": false,
+      "authority": "community",
+      "id": "sn-74-gittensor-data-artifact-api-gittensor-io-6",
+      "kind": "data-artifact",
+      "name": "Gittensor scoring configuration",
+      "notes": "Public no-auth GET /configurations/general on api.gittensor.io returning the subnet's live scoring configuration (language weights, PR base/bonus scores, issue close-window, mitigated extensions). Documented in the subnet OpenAPI (/swagger-json) as 'Get general configuration data'.",
+      "probe": {
+        "enabled": true,
+        "expect": "any",
+        "method": "HEAD",
+        "timeout_ms": 10000
+      },
+      "provider": "gittensor",
+      "public_safe": true,
+      "review": {
+        "state": "community-submitted",
+        "submitted_by": "swengieer0829"
+      },
+      "source_urls": ["https://api.gittensor.io/swagger-json"],
+      "url": "https://api.gittensor.io/configurations/general"
     }
   ],
   "website_url": "https://gittensor.io/"
