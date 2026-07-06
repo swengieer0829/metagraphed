@@ -416,6 +416,25 @@
         "https://api.gittensor.io/swagger"
       ],
       "url": "https://api.gittensor.io/"
+    },
+    {
+      "auth_required": false,
+      "authority": "community",
+      "id": "sn-74-gittensor-data-artifact-api-gittensor-io-6",
+      "kind": "data-artifact",
+      "name": "Gittensor scoring configuration",
+      "notes": "Public no-auth GET /configurations/general on api.gittensor.io returning the subnet's live scoring configuration (observed: languageFileScoring weights, repositoryPrScoring defaultMergedPrBaseScore/bonus, maxIssueCloseWindowDays, mitigatedExtensions). Documented in the subnet OpenAPI (api.gittensor.io/swagger-json, 'Gittensor DAS') as 'Get general configuration data'; same host as the existing Gittensor dash data-artifact surfaces.",
+      "provider": "gittensor",
+      "public_safe": true,
+      "review": {
+        "state": "community-submitted",
+        "submitted_by": "swengieer0829"
+      },
+      "source_urls": [
+        "https://api.gittensor.io/swagger-json",
+        "https://gittensor.io/"
+      ],
+      "url": "https://api.gittensor.io/configurations/general"
     }
   ],
   "website_url": "https://gittensor.io/"
